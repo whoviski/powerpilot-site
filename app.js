@@ -3,6 +3,76 @@
   const fine = matchMedia("(pointer: fine)").matches;
   const saveData = navigator.connection && navigator.connection.saveData;
 
+  const consentName = "pp_cookie_consent";
+  const readConsent = () => {
+    const prefix = consentName + "=";
+    const row = document.cookie.split("; ").find((item) => item.startsWith(prefix));
+    if (!row) return "";
+    const value = decodeURIComponent(row.slice(prefix.length));
+    return value === "all" || value === "necessary" ? value : "";
+  };
+  const applyConsent = (choice) => {
+    if (choice !== "all") return;
+    // Необязательных сторонних скриптов в проекте нет. См. docs/THIRD_PARTY_AUDIT.md.
+  };
+  const writeConsent = (choice) => {
+    const secure = location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = consentName + "=" + choice + "; Max-Age=31536000; Path=/; SameSite=Lax" + secure;
+    applyConsent(choice);
+  };
+  const banner = document.createElement("div");
+  banner.id = "cookie-banner";
+  banner.className = "cookie-banner";
+  banner.hidden = true;
+  banner.setAttribute("role", "dialog");
+  banner.setAttribute("aria-modal", "false");
+  banner.setAttribute("aria-labelledby", "cookie-title");
+  banner.setAttribute("aria-describedby", "cookie-desc");
+  banner.innerHTML = '<div class="cookie-card"><h2 id="cookie-title" tabindex="-1">Файлы cookie</h2><p id="cookie-desc">Этот сайт записывает только строго необходимый cookie с выбранным здесь вариантом. Аналитические и рекламные cookie не используются и не ставятся. Подробнее — в <a href="cookies.html">Политике cookie</a> и <a href="privacy.html">Политике конфиденциальности</a>.</p><div class="cookie-actions"><button type="button" class="btn" data-consent="all">Принять все</button><button type="button" class="btn btn-ghost" data-consent="necessary">Только необходимые</button><button type="button" class="btn btn-ghost" data-consent="settings" aria-expanded="false" aria-controls="cookie-panel">Настроить</button></div><div id="cookie-panel" class="cookie-panel" hidden><p>Необязательных категорий на сайте нет, поэтому сохранить можно только необходимый cookie.</p><label><input type="checkbox" checked disabled> Строго необходимые — всегда включены, запоминают этот выбор.</label><label><input type="checkbox" disabled> Аналитические — не используются.</label><label><input type="checkbox" disabled> Рекламные — не используются.</label><button type="button" class="btn" data-consent="necessary">Сохранить</button></div></div>';
+  document.body.appendChild(banner);
+  const panel = banner.querySelector("#cookie-panel");
+  const settingsBtn = banner.querySelector("[data-consent='settings']");
+  let returnFocus = null;
+  const placeBanner = () => {
+    document.body.style.paddingBottom = banner.hidden ? "" : banner.offsetHeight + "px";
+  };
+  const openBanner = (showSettings) => {
+    banner.hidden = false;
+    panel.hidden = !showSettings;
+    settingsBtn.setAttribute("aria-expanded", showSettings ? "true" : "false");
+    placeBanner();
+    banner.querySelector("#cookie-title").focus();
+  };
+  const closeBanner = () => {
+    banner.hidden = true;
+    placeBanner();
+    if (returnFocus) returnFocus.focus();
+  };
+  banner.addEventListener("click", (e) => {
+    const button = e.target.closest("[data-consent]");
+    if (!button || button === settingsBtn) {
+      if (button === settingsBtn) {
+        const open = panel.hidden;
+        panel.hidden = !open;
+        settingsBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        placeBanner();
+      }
+      return;
+    }
+    writeConsent(button.dataset.consent);
+    closeBanner();
+  });
+  document.querySelectorAll(".js-cookie-settings").forEach((button) => {
+    button.addEventListener("click", () => {
+      returnFocus = button;
+      openBanner(true);
+    });
+  });
+  addEventListener("resize", placeBanner);
+  const existingConsent = readConsent();
+  if (existingConsent) applyConsent(existingConsent);
+  else openBanner(false);
+
   const ul = document.querySelector("#topnav ul");
   const burger = document.querySelector(".burger");
   const setOpen = (open) => {
@@ -46,12 +116,14 @@
   }
 
   const bar = document.querySelector(".progress > span");
-  const onScroll = () => {
-    const max = document.documentElement.scrollHeight - innerHeight;
-    bar.style.transform = "scaleX(" + (max > 0 ? Math.min(1, scrollY / max) : 0) + ")";
-  };
-  addEventListener("scroll", onScroll, { passive: true });
-  onScroll();
+  if (bar) {
+    const onScroll = () => {
+      const max = document.documentElement.scrollHeight - innerHeight;
+      bar.style.transform = "scaleX(" + (max > 0 ? Math.min(1, scrollY / max) : 0) + ")";
+    };
+    addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+  }
 
   document.querySelectorAll("[data-tabs]").forEach((root) => {
     const tabs = [...root.querySelectorAll('[role="tab"]')];
@@ -115,12 +187,15 @@
   }
 
   const lb = document.getElementById("lb");
-  const shot = lb.querySelector("img");
-  const caption = lb.querySelector("p");
+  let close = () => {};
+  let show = () => {};
   let index = -1;
   let lastFocus = null;
+  if (lb) {
+  const shot = lb.querySelector("img");
+  const caption = lb.querySelector("p");
   const photos = () => [...document.querySelectorAll("header img, section img")].filter((img) => !img.closest("[hidden]"));
-  const show = (i) => {
+  show = (i) => {
     const list = photos();
     if (!list.length) return;
     index = (i + list.length) % list.length;
@@ -131,7 +206,7 @@
     lb.hidden = false;
     document.body.classList.add("lock");
   };
-  const close = () => {
+  close = () => {
     if (lb.hidden) return;
     lb.hidden = true;
     shot.removeAttribute("src");
@@ -150,6 +225,7 @@
   lb.addEventListener("click", (e) => {
     if (e.target === lb) close();
   });
+  }
 
   const format = (value, digits) => value.toLocaleString("ru-RU", { minimumFractionDigits: digits, maximumFractionDigits: digits });
   const count = (el) => {
@@ -230,6 +306,7 @@
 
   if (!rm) {
     const hero = document.querySelector(".hero");
+    if (hero) {
     const layers = [...hero.querySelectorAll("[data-depth]")];
     const spot = hero.querySelector(".spot");
     let mx = 0;
@@ -270,6 +347,7 @@
       }, { passive: true });
     }
     requestApply();
+    }
   }
 
   addEventListener("keydown", (e) => {
@@ -278,7 +356,7 @@
       close();
       return;
     }
-    if (lb.hidden) return;
+    if (!lb || lb.hidden) return;
     if (e.key === "ArrowLeft") show(index - 1);
     if (e.key === "ArrowRight") show(index + 1);
   });
